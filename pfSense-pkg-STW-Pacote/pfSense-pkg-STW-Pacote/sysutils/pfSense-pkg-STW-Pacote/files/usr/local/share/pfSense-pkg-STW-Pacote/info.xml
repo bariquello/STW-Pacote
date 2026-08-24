@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<pfsensepkgs>
+	<package>
+		<name>STW-Pacote</name>
+		<internal_name>STW-Pacote</internal_name>
+		<descr><![CDATA[Pacote interno System Way: aplica o tema pfSense-Systemway automaticamente e adiciona um menu em Services para configurar a rotina de Backup via FTP (substitui o procedimento manual da Base de Conhecimento 338).]]></descr>
+		<version>%%PKGVERSION%%</version>
+		<configurationfile>stw_pacote.xml</configurationfile>
+	</package>
+</pfsensepkgs>

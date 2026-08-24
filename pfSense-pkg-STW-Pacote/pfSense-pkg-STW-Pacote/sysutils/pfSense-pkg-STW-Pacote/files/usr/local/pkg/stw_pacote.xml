@@ -1,0 +1,143 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+	stw_pacote.xml
+	Pacote interno System Way (STW-Pacote)
+	Copyright (c) 2026 System Way
+-->
+<packagegui>
+	<copyright>
+	<![CDATA[
+/*
+ * stw_pacote.xml
+ * Copyright (c) 2026 System Way
+ * All rights reserved.
+ */
+	]]>
+	</copyright>
+
+	<description>STW - Backup FTP e Tema</description>
+	<requirements>pfSense CE 2.7 / pfSense Plus 24.x</requirements>
+	<faq>Uso interno System Way - substitui a rotina manual da Base de Conhecimento 338.</faq>
+	<name>STW Backup FTP</name>
+	<version>0.3</version>
+	<title>Services/STW Backup FTP</title>
+
+	<include_file>/usr/local/pkg/stw_pacote.inc</include_file>
+
+	<!-- ============ MENU EM SERVICES ============ -->
+	<menu>
+		<name>STW Backup FTP</name>
+		<tooltiptext>Configurar a rotina de Backup via FTP (System Way)</tooltiptext>
+		<section>Services</section>
+		<url>/pkg_edit.php?xml=stw_pacote.xml</url>
+	</menu>
+
+	<!-- ============ SERVICO (start/stop e status) ============ -->
+	<service>
+		<name>stw_backup</name>
+		<rcfile>stw_backup.sh</rcfile>
+		<executable>stw_backup</executable>
+		<description>STW Backup FTP (System Way)</description>
+	</service>
+
+	<!-- ============ ONDE OS DADOS FICAM NO config.xml ============ -->
+	<configpath>installedpackages/stwpacote/config</configpath>
+
+	<!-- ============ CAMPOS DA GUI ============ -->
+	<fields>
+		<field>
+			<name>Rotina de Backup via FTP</name>
+			<type>listtopic</type>
+		</field>
+
+		<field>
+			<fielddescr>Habilitar rotina de backup</fielddescr>
+			<fieldname>enable</fieldname>
+			<description>Quando marcado, o pacote gera o /etc/backup.sh e agenda a execucao diaria via cron.</description>
+			<type>checkbox</type>
+		</field>
+
+		<field>
+			<fielddescr>Servidor FTP (HOST)</fielddescr>
+			<fieldname>host</fieldname>
+			<description>Endereco do servidor de backup FTP.</description>
+			<type>input</type>
+			<default_value>monitoramento.systemway.com.br</default_value>
+			<size>40</size>
+			<required/>
+		</field>
+
+		<field>
+			<fielddescr>Porta FTP</fielddescr>
+			<fieldname>porta</fieldname>
+			<description>Porta de servico do FTP.</description>
+			<type>input</type>
+			<default_value>21000</default_value>
+			<size>8</size>
+			<required/>
+		</field>
+
+		<field>
+			<fielddescr>Usuario FTP</fielddescr>
+			<fieldname>usuario</fieldname>
+			<description>Altere de acordo com o nome da empresa/usuario do FTP.</description>
+			<type>input</type>
+			<default_value>pfsense</default_value>
+			<size>30</size>
+			<required/>
+		</field>
+
+		<field>
+			<fielddescr>Senha FTP</fielddescr>
+			<fieldname>senha</fieldname>
+			<description>Senha do usuario FTP.</description>
+			<type>password</type>
+			<size>30</size>
+			<required/>
+		</field>
+
+		<field>
+			<fielddescr>Prefixo do arquivo (ARQUIVO)</fielddescr>
+			<fieldname>arquivo</fieldname>
+			<description>Padrao de nome dos arquivos enviados. Atente-se ao nome do firewall! Ex.: firewall.* ou nomeempresa.*</description>
+			<type>input</type>
+			<default_value>firewall.*</default_value>
+			<size>30</size>
+			<required/>
+		</field>
+
+		<field>
+			<fielddescr>Horario do backup diario</fielddescr>
+			<fieldname>hora_cron</fieldname>
+			<description>Hora (0-23) em que o cron executara o backup. Minuto fixo em 0.</description>
+			<type>input</type>
+			<default_value>3</default_value>
+			<size>4</size>
+		</field>
+
+		<field>
+			<name>Tema pfSense-Systemway</name>
+			<type>listtopic</type>
+		</field>
+
+		<field>
+			<fielddescr>Reaplicar tema pfSense-Systemway</fielddescr>
+			<fieldname>aplicar_tema</fieldname>
+			<description>Ao salvar, refaz o deploy dos arquivos do tema (css/js/head.inc/logos) em /usr/local/www e reforca o webguicss = pfSense-Systemway.css. Use apos um update do sistema que tenha sobrescrito os arquivos core.</description>
+			<type>checkbox</type>
+		</field>
+	</fields>
+
+	<!-- ============ HOOKS DE CICLO DE VIDA ============ -->
+	<custom_php_install_command>
+		stw_pacote_install();
+	</custom_php_install_command>
+
+	<custom_php_deinstall_command>
+		stw_pacote_deinstall();
+	</custom_php_deinstall_command>
+
+	<custom_php_resync_config_command>
+		stw_pacote_resync();
+	</custom_php_resync_config_command>
+</packagegui>

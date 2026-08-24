@@ -1,0 +1,256 @@
+/* ============================================================
+   login.css — STW Firewall Custom Theme
+   Full green background, logo centered top, white card below
+   ============================================================ */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+/* ── Base ─────────────────────────────────────── */
+html, body {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    width: 100%;
+    min-height: 100vh;
+    font-family: 'Roboto', 'Segoe UI', Arial, sans-serif;
+}
+
+/* ── Header row — transparent on green bg ─────── */
+#headerrow {
+    position: relative !important;
+    height: auto !important;
+    background: transparent !important;
+    border: none !important;
+    padding: 40px 0 20px;
+    text-align: center;
+    width: 100%;
+}
+
+/* Row & columns inside headerrow — keep centered */
+#headerrow .container,
+#headerrow .row {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+}
+
+/* Hostname text — hidden on login page */
+#hostspan {
+    display: none !important;
+}
+
+/* ── Logo ─────────────────────────────────────── */
+
+/* Hide pfSense's injected SVG and img elements */
+#logodiv svg,
+#logodiv img {
+    display: none !important;
+}
+
+#logodiv {
+    background-image: url('/logo.png');
+    background-repeat: no-repeat;
+    background-size: contain;
+    background-position: center center;
+    width: 260px;
+    height: 110px;
+    display: block;
+    margin: 0 auto;
+}
+
+.logoCol {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+}
+
+/* ── Page body — flex center for the card ─────── */
+.pagebody {
+    position: relative !important;
+    top: auto !important;
+    bottom: auto !important;
+    width: 100%;
+    background: transparent !important;
+    color: #333;
+    display: flex;
+    justify-content: center;
+    padding: 10px 16px 60px;
+}
+
+.pagebodywarn {
+    position: relative !important;
+    top: auto !important;
+    bottom: auto !important;
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    padding: 10px 16px 60px;
+}
+
+.nowarning {
+    height: 0;
+    padding: 0;
+}
+
+.msgbox {
+    padding: 0;
+}
+
+/* ── Login card ───────────────────────────────── */
+.loginCont {
+    position: relative !important;
+    top: auto !important;
+    left: auto !important;
+    transform: none !important;
+    width: 100%;
+    max-width: 400px;
+    background: #ffffff;
+    border-radius: 12px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.30);
+    padding: 36px 36px 30px;
+}
+
+.error-panel a {
+    color: #0C6C5C;
+}
+
+/* ── Form title ───────────────────────────────── */
+p.form-title {
+    font-size: 20px;
+    font-weight: 700;
+    text-align: center;
+    color: #1a1a1a;
+    margin: 0 0 20px;
+    letter-spacing: 0.3px;
+    text-transform: none;
+}
+
+/* ── Inputs ───────────────────────────────────── */
+form.login {
+    width: 100%;
+}
+
+form.login input[type="text"],
+form.login input[type="password"] {
+    width: 100%;
+    padding: 11px 14px;
+    background: #f4f7f6;
+    border: 1px solid #d0d8d5;
+    border-radius: 7px;
+    outline: 0;
+    font-size: 15px;
+    color: #222;
+    margin-bottom: 12px;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    font-style: normal;
+    font-weight: 400;
+    letter-spacing: normal;
+}
+
+form.login input[type="text"]:focus,
+form.login input[type="password"]:focus {
+    border-color: #0C6C5C;
+    box-shadow: 0 0 0 3px rgba(12, 108, 92, 0.15);
+    background: #fff;
+}
+
+form.login input[type="text"]::placeholder,
+form.login input[type="password"]::placeholder {
+    color: #aab5b2;
+    font-style: italic;
+}
+
+/* ── Submit button ────────────────────────────── */
+form.login input[type="submit"] {
+    width: 100% !important;
+    display: block !important;
+    margin: 20px 0 0 !important;
+    padding: 13px 0 !important;
+    font-size: 14px !important;
+    font-weight: 700 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 2px !important;
+    cursor: pointer;
+    background-color: #0C6C5C !important;
+    border: none !important;
+    border-radius: 7px !important;
+    color: #ffffff !important;
+    box-shadow: 0 4px 18px rgba(12, 108, 92, 0.40);
+    transition: background-color 0.25s, box-shadow 0.25s;
+    outline: 0;
+}
+
+form.login input[type="submit"]:hover {
+    background-color: #159C4D !important;
+    box-shadow: 0 6px 24px rgba(21, 156, 77, 0.50);
+}
+
+/* ── Labels & links ───────────────────────────── */
+form.login label,
+form.login a {
+    font-size: 13px;
+    font-weight: 400;
+    color: #555;
+}
+
+form.login a {
+    color: #0C6C5C;
+    transition: color 0.2s;
+}
+
+form.login a:hover {
+    color: #159C4D;
+    text-decoration: underline;
+}
+
+form.login .checkbox label {
+    color: #666;
+}
+
+/* ── Footer ───────────────────────────────────── */
+#footertext {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 28px;
+    line-height: 28px;
+    background: rgba(0, 0, 0, 0.20);
+    color: rgba(255, 255, 255, 0.65);
+    text-align: center;
+    font-size: 12px;
+    border-top: 1px solid rgba(255, 255, 255, 0.10);
+}
+
+/* ── Responsive ───────────────────────────────── */
+@media (max-width: 600px) {
+    #headerrow {
+        padding: 28px 0 14px;
+    }
+
+    #logodiv {
+        width: 200px;
+        height: 85px;
+    }
+
+    .loginCont {
+        padding: 26px 20px 22px;
+    }
+}
+
+/* ── Webkit autocomplete fix ──────────────────── */
+@-webkit-keyframes autofill {
+    to {
+        color: #222;
+        background: #f4f7f6;
+    }
+}
+
+input:-webkit-autofill {
+    -webkit-animation-name: autofill;
+    -webkit-animation-fill-mode: both;
+}
