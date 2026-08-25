@@ -1,7 +1,11 @@
 <?php
 /*
- * stw_pacote.inc  -  Pacote interno System Way (STW-Pacote)  v0.4
+ * stw_pacote.inc  -  Pacote interno System Way (STW-Pacote)  v0.5
  * Copyright (c) 2026 System Way
+ *
+ * v0.5: corrige leitura da configuracao salva pela GUI. O pfSense pode gravar
+ *       o formulario em chaves diferentes (stwpacote, stwbackupftp, etc.)
+ *       conforme o <name>/<configpath> do XML. Agora a leitura e tolerante.
  */
 
 require_once("config.inc");
@@ -16,7 +20,7 @@ define('STW_THEME_SRC', '/usr/local/share/pfSense-pkg-STW-Pacote/theme');
 define('STW_THEME_BAK', '/usr/local/share/pfSense-pkg-STW-Pacote/orig_backup');
 
 /* -------------------------------------------------------------------------
- * Mapa de arquivos do tema: origem (staging) => destino no /usr/local/www
+ * Mapa de arquivos do tema
  * ------------------------------------------------------------------------- */
 function stw_theme_map() {
 	return array(
@@ -47,14 +51,46 @@ function stw_core_files() {
 }
 
 /* -------------------------------------------------------------------------
- * Le a configuracao salva pela GUI (installedpackages/stwpacote/config)
+ * LEITURA ROBUSTA DA CONFIGURACAO  (correcao principal da v0.5)
+ *
+ * O pfSense pode salvar o formulario em chaves distintas dependendo do
+ * <name> e do <configpath> do XML. Procuramos em varios candidatos e,
+ * como ultimo recurso, varremos installedpackages atras de um bloco que
+ * contenha os campos esperados (host/usuario/senha).
  * ------------------------------------------------------------------------- */
 function stw_get_config() {
 	global $config;
-	if (!is_array($config['installedpackages']['stwpacote']['config'][0])) {
+
+	if (!is_array($config['installedpackages'])) {
 		return array();
 	}
-	return $config['installedpackages']['stwpacote']['config'][0];
+	$ip = $config['installedpackages'];
+
+	// 1) Candidatos conhecidos, na ordem de probabilidade.
+	$candidatos = array('stwpacote', 'stwbackupftp', 'stw_backup_ftp', 'stwbackup', 'stwpkg');
+	foreach ($candidatos as $k) {
+		if (isset($ip[$k]['config'][0]) && is_array($ip[$k]['config'][0]) && count($ip[$k]['config'][0]) > 0) {
+			return $ip[$k]['config'][0];
+		}
+		// alguns pacotes salvam direto em [k]['config'] sem indice 0
+		if (isset($ip[$k]['config']) && is_array($ip[$k]['config']) && isset($ip[$k]['config']['host'])) {
+			return $ip[$k]['config'];
+		}
+	}
+
+	// 2) Varredura: procura qualquer bloco com nossos campos.
+	foreach ($ip as $chave => $val) {
+		if (!is_array($val)) { continue; }
+		if (isset($val['config'][0]) && is_array($val['config'][0])) {
+			$c = $val['config'][0];
+			if (isset($c['host']) || isset($c['usuario']) || isset($c['senha'])) {
+				log_error("[STW-Pacote] Config localizada em installedpackages/{$chave}/config/0");
+				return $c;
+			}
+		}
+	}
+
+	return array();
 }
 
 /* -------------------------------------------------------------------------
@@ -67,7 +103,7 @@ function stw_registrar_menu() {
 	}
 	foreach ($config['installedpackages']['menu'] as $it) {
 		if (isset($it['name']) && $it['name'] == 'STW Backup FTP') {
-			return; // ja existe
+			return;
 		}
 	}
 	$config['installedpackages']['menu'][] = array(
@@ -140,53 +176,56 @@ function stw_aplicar_tema() {
 
 /* -------------------------------------------------------------------------
  * RESYNC  ->  SEMPRE gera o /etc/backup.sh a partir da GUI.
- * O checkbox 'enable' controla apenas o AGENDAMENTO no cron.
  * ------------------------------------------------------------------------- */
 function stw_pacote_resync() {
 	$cfg = stw_get_config();
 
-	// Re-deploy do tema se solicitado.
 	if (!empty($cfg['aplicar_tema'])) {
 		stw_deploy_theme();
 		stw_aplicar_tema();
 	}
 
-	// Garante que o menu exista.
 	stw_registrar_menu();
 
-	// Valores (com defaults System Way).
-	$host    = !empty($cfg['host'])    ? $cfg['host']    : 'monitoramento.systemway.com.br';
-	$porta   = !empty($cfg['porta'])   ? $cfg['porta']   : '21000';
-	$usuario = !empty($cfg['usuario']) ? $cfg['usuario'] : 'pfsense';
-	$senha   = isset($cfg['senha'])    ? $cfg['senha']   : 'senha';
-	$arquivo = !empty($cfg['arquivo']) ? $cfg['arquivo'] : 'firewall.*';
+	// Decodifica entidades HTML (& ' " < >) gravadas pelo pfSense.
+	$host    = html_entity_decode(!empty($cfg['host'])    ? $cfg['host']    : 'monitoramento.systemway.com.br', ENT_QUOTES);
+	$porta   = html_entity_decode(!empty($cfg['porta'])   ? $cfg['porta']   : '21000', ENT_QUOTES);
+	$usuario = html_entity_decode(!empty($cfg['usuario']) ? $cfg['usuario'] : 'pfsense', ENT_QUOTES);
+	$senha   = html_entity_decode(isset($cfg['senha'])    ? $cfg['senha']   : 'senha', ENT_QUOTES);
+	$arquivo = html_entity_decode(!empty($cfg['arquivo']) ? $cfg['arquivo'] : 'firewall.*', ENT_QUOTES);
 
-	// SEMPRE gera o script (independente do enable).
 	$script = stw_gerar_backup_script($host, $porta, $usuario, $senha, $arquivo);
 	file_put_contents(STW_BACKUP_SCRIPT, $script);
 	@chmod(STW_BACKUP_SCRIPT, 0777);
-	log_error("[STW-Pacote] /etc/backup.sh gerado (" . strlen($script) . " bytes).");
+	log_error("[STW-Pacote] /etc/backup.sh gerado para usuario '{$usuario}' em '{$host}'.");
 
-	// Cron so quando habilitado.
 	if (!empty($cfg['enable'])) {
 		$hora = (isset($cfg['hora_cron']) && $cfg['hora_cron'] !== '') ? intval($cfg['hora_cron']) : 3;
 		stw_agendar_cron($hora);
-		log_error("[STW-Pacote] Cron agendado para {$hora}:00.");
 	} else {
 		stw_remover_cron();
-		log_error("[STW-Pacote] Backup gerado, cron NAO agendado (enable desmarcado).");
 	}
 
 	write_config("STW-Pacote: resync (backup.sh gerado)");
 }
 
 /* -------------------------------------------------------------------------
- * Gera o texto do script (modelo v0.2 - Cleberson A. Tavares)
+ * Geracao do script (modelo v0.2 - Cleberson A. Tavares)
  * ------------------------------------------------------------------------- */
+function stw_sh_quote($v) {
+	return str_replace("'", "'\\''", $v);
+}
+
 function stw_gerar_backup_script($host, $porta, $usuario, $senha, $arquivo) {
+	$host    = stw_sh_quote($host);
+	$porta   = stw_sh_quote($porta);
+	$usuario = stw_sh_quote($usuario);
+	$senha   = stw_sh_quote($senha);
+	$arquivo = stw_sh_quote($arquivo);
+
 	$s  = "#!/bin/sh\n";
 	$s .= "#\n";
-	$s .= "# Versao 0.4 - Gerado automaticamente pelo pacote STW-Pacote\n";
+	$s .= "# Versao 0.5 - Gerado automaticamente pelo pacote STW-Pacote\n";
 	$s .= "# Copyright (c) 2026 Systemway\n";
 	$s .= "# Base: script v0.2 - Analista de suporte Cleberson A. Tavares\n";
 	$s .= "# NAO EDITE MANUALMENTE: use Services > STW Backup FTP\n";
@@ -287,7 +326,6 @@ function stw_pacote_deinstall() {
 		$config['system']['webgui']['webguicss'] = $config['system']['webgui']['stw_prev_css'];
 		unset($config['system']['webgui']['stw_prev_css']);
 	}
-	// remove menu
 	if (is_array($config['installedpackages']['menu'])) {
 		foreach ($config['installedpackages']['menu'] as $k => $it) {
 			if (isset($it['name']) && $it['name'] == 'STW Backup FTP') {
