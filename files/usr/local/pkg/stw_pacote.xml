@@ -4,7 +4,7 @@
 	<requirements>pfSense CE 2.8 / Plus 24.x</requirements>
 	<faq>Uso interno System Way - Base de Conhecimento 338.</faq>
 	<name>stwpacote</name>
-	<version>0.5</version>
+	<version>0.6</version>
 	<title>Services/STW Backup FTP</title>
 	<include_file>/usr/local/pkg/stw_pacote.inc</include_file>
 	<menu>
@@ -34,6 +34,15 @@
 		<field><fielddescr>Senha FTP</fielddescr><fieldname>senha</fieldname><type>password</type><size>30</size><required/></field>
 		<field><fielddescr>Prefixo do arquivo (ARQUIVO)</fielddescr><fieldname>arquivo</fieldname><description>Atente-se ao nome do firewall! Ex.: firewall.*</description><type>input</type><default_value>firewall.*</default_value><size>30</size><required/></field>
 		<field><fielddescr>Horario do backup diario</fielddescr><fieldname>hora_cron</fieldname><description>Hora (0-23) para o cron. Minuto fixo em 0.</description><type>input</type><default_value>3</default_value><size>4</size></field>
+
+		<field><name>Dependencias e Monitoramento</name><type>listtopic</type></field>
+		<field>
+			<fielddescr>Verificar/instalar dependencias</fielddescr>
+			<fieldname>instalar_deps</fieldname>
+			<description>Ao salvar, verifica e instala (somente se ausentes): Cron, Zabbix Agent 5.0 e Zabbix Proxy 5.0, alem de provisionar /root/scripts/pfsense_zbx.php. Pacotes ja instalados sao ignorados.</description>
+			<type>checkbox</type>
+		</field>
+
 		<field><name>Tema pfSense-Systemway</name><type>listtopic</type></field>
 		<field><fielddescr>Reaplicar tema pfSense-Systemway</fielddescr><fieldname>aplicar_tema</fieldname><description>Ao salvar, refaz o deploy do tema em /usr/local/www.</description><type>checkbox</type></field>
 	</fields>

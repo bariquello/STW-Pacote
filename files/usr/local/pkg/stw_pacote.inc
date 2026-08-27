@@ -1,11 +1,12 @@
 <?php
 /*
- * stw_pacote.inc  -  Pacote interno System Way (STW-Pacote)  v0.5
+ * stw_pacote.inc  -  Pacote interno System Way (STW-Pacote)  v0.6
  * Copyright (c) 2026 System Way
  *
- * v0.5: corrige leitura da configuracao salva pela GUI. O pfSense pode gravar
- *       o formulario em chaves diferentes (stwpacote, stwbackupftp, etc.)
- *       conforme o <name>/<configpath> do XML. Agora a leitura e tolerante.
+ * v0.6: instala dependencias (Cron, Zabbix Agent 5.0, Zabbix Proxy 5.0) de forma
+ *       IDEMPOTENTE (verifica antes, nao reinstala) e provisiona o script
+ *       pfsense_zbx.php em /root/scripts.
+ * v0.5: corrige leitura da configuracao salva pela GUI.
  */
 
 require_once("config.inc");
@@ -18,6 +19,110 @@ define('STW_THEME_NAME', 'pfSense-Systemway');
 define('STW_BACKUP_SCRIPT', '/etc/backup.sh');
 define('STW_THEME_SRC', '/usr/local/share/pfSense-pkg-STW-Pacote/theme');
 define('STW_THEME_BAK', '/usr/local/share/pfSense-pkg-STW-Pacote/orig_backup');
+
+/* Script de monitoramento pfSense para Zabbix */
+define('STW_ZBX_DIR',  '/root/scripts');
+define('STW_ZBX_FILE', '/root/scripts/pfsense_zbx.php');
+define('STW_ZBX_URL',  'https://raw.githubusercontent.com/rbicelli/pfsense-zabbix-template/master/pfsense_zbx.php');
+
+/* -------------------------------------------------------------------------
+ * DEPENDENCIAS: pacotes oficiais do repositorio pfSense
+ * ------------------------------------------------------------------------- */
+function stw_dependencias() {
+	return array(
+		'pfSense-pkg-Cron'          => 'Cron',
+		'pfSense-pkg-zabbix-agent5' => 'Zabbix Agent 5.0',
+		'pfSense-pkg-zabbix-proxy5' => 'Zabbix Proxy 5.0',
+	);
+}
+
+/* Verifica se um pacote ja esta instalado (pkg info -e retorna 0 se existe) */
+function stw_pkg_instalado($pkg) {
+	$rc = 0;
+	$out = array();
+	exec("/usr/local/sbin/pkg-static info -e " . escapeshellarg($pkg) . " 2>/dev/null", $out, $rc);
+	if ($rc === 0) {
+		return true;
+	}
+	// Fallback: consulta o registro de pacotes do proprio pfSense.
+	$curto = preg_replace('/^pfSense-pkg-/', '', $pkg);
+	global $config;
+	if (is_array($config['installedpackages']['package'])) {
+		foreach ($config['installedpackages']['package'] as $p) {
+			if (isset($p['name']) && strcasecmp($p['name'], $curto) == 0) {
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
+/*
+ * Instala as dependencias que ainda nao existirem.
+ * Retorna array com o resumo do que foi feito.
+ */
+function stw_instalar_dependencias() {
+	$resumo = array();
+
+	foreach (stw_dependencias() as $pkg => $label) {
+		if (stw_pkg_instalado($pkg)) {
+			$resumo[] = "[=] {$label}: ja instalado, nada a fazer";
+			log_error("[STW-Pacote] {$label} ja instalado - ignorando.");
+			continue;
+		}
+
+		log_error("[STW-Pacote] Instalando {$label} ({$pkg})...");
+		$rc = 0; $out = array();
+		exec("/usr/local/sbin/pkg-static install -y " . escapeshellarg($pkg) . " 2>&1", $out, $rc);
+
+		if ($rc === 0 && stw_pkg_instalado($pkg)) {
+			$resumo[] = "[+] {$label}: instalado com sucesso";
+			log_error("[STW-Pacote] {$label} instalado com sucesso.");
+		} else {
+			$resumo[] = "[!] {$label}: FALHA na instalacao (verifique DNS/internet)";
+			log_error("[STW-Pacote] FALHA ao instalar {$label}: " . implode(' | ', array_slice($out, -3)));
+		}
+	}
+
+	// Recarrega o registro de pacotes para que os menus apareçam.
+	if (function_exists('sync_package_all')) {
+		@sync_package_all();
+	}
+
+	return $resumo;
+}
+
+/* -------------------------------------------------------------------------
+ * Provisiona o script pfsense_zbx.php em /root/scripts
+ * Equivale a: mkdir /root/scripts && curl -o /root/scripts/pfsense_zbx.php <URL>
+ * ------------------------------------------------------------------------- */
+function stw_instalar_zbx_script($forcar = false) {
+	if (!is_dir(STW_ZBX_DIR)) {
+		safe_mkdir(STW_ZBX_DIR, 0755);
+		log_error("[STW-Pacote] Diretorio " . STW_ZBX_DIR . " criado.");
+	}
+
+	if (file_exists(STW_ZBX_FILE) && filesize(STW_ZBX_FILE) > 0 && !$forcar) {
+		log_error("[STW-Pacote] pfsense_zbx.php ja existe - ignorando download.");
+		return "[=] pfsense_zbx.php: ja existe, nada a fazer";
+	}
+
+	$rc = 0; $out = array();
+	// fetch e nativo do pfSense; curl usado como alternativa se disponivel.
+	exec("/usr/bin/fetch -q -o " . escapeshellarg(STW_ZBX_FILE) . " " . escapeshellarg(STW_ZBX_URL) . " 2>&1", $out, $rc);
+	if ($rc !== 0 || !file_exists(STW_ZBX_FILE) || filesize(STW_ZBX_FILE) == 0) {
+		exec("/usr/local/bin/curl -sSL -o " . escapeshellarg(STW_ZBX_FILE) . " " . escapeshellarg(STW_ZBX_URL) . " 2>&1", $out, $rc);
+	}
+
+	if (file_exists(STW_ZBX_FILE) && filesize(STW_ZBX_FILE) > 0) {
+		@chmod(STW_ZBX_FILE, 0755);
+		log_error("[STW-Pacote] pfsense_zbx.php baixado (" . filesize(STW_ZBX_FILE) . " bytes).");
+		return "[+] pfsense_zbx.php: baixado em " . STW_ZBX_FILE;
+	}
+
+	log_error("[STW-Pacote] FALHA ao baixar pfsense_zbx.php.");
+	return "[!] pfsense_zbx.php: FALHA no download";
+}
 
 /* -------------------------------------------------------------------------
  * Mapa de arquivos do tema
@@ -51,12 +156,7 @@ function stw_core_files() {
 }
 
 /* -------------------------------------------------------------------------
- * LEITURA ROBUSTA DA CONFIGURACAO  (correcao principal da v0.5)
- *
- * O pfSense pode salvar o formulario em chaves distintas dependendo do
- * <name> e do <configpath> do XML. Procuramos em varios candidatos e,
- * como ultimo recurso, varremos installedpackages atras de um bloco que
- * contenha os campos esperados (host/usuario/senha).
+ * LEITURA ROBUSTA DA CONFIGURACAO
  * ------------------------------------------------------------------------- */
 function stw_get_config() {
 	global $config;
@@ -66,19 +166,16 @@ function stw_get_config() {
 	}
 	$ip = $config['installedpackages'];
 
-	// 1) Candidatos conhecidos, na ordem de probabilidade.
 	$candidatos = array('stwpacote', 'stwbackupftp', 'stw_backup_ftp', 'stwbackup', 'stwpkg');
 	foreach ($candidatos as $k) {
 		if (isset($ip[$k]['config'][0]) && is_array($ip[$k]['config'][0]) && count($ip[$k]['config'][0]) > 0) {
 			return $ip[$k]['config'][0];
 		}
-		// alguns pacotes salvam direto em [k]['config'] sem indice 0
 		if (isset($ip[$k]['config']) && is_array($ip[$k]['config']) && isset($ip[$k]['config']['host'])) {
 			return $ip[$k]['config'];
 		}
 	}
 
-	// 2) Varredura: procura qualquer bloco com nossos campos.
 	foreach ($ip as $chave => $val) {
 		if (!is_array($val)) { continue; }
 		if (isset($val['config'][0]) && is_array($val['config'][0])) {
@@ -117,12 +214,22 @@ function stw_registrar_menu() {
 
 /* -------------------------------------------------------------------------
  * INSTALL
+ * Ordem: dependencias (Cron + Zabbix) -> script zbx -> tema -> menu -> backup
  * ------------------------------------------------------------------------- */
 function stw_pacote_install() {
+	// 1) Dependencias primeiro (idempotente).
+	$resumo = stw_instalar_dependencias();
+	foreach ($resumo as $linha) { echo "  {$linha}\n"; }
+
+	// 2) Script de monitoramento do Zabbix.
+	echo "  " . stw_instalar_zbx_script(false) . "\n";
+
+	// 3) Tema + menu.
 	stw_deploy_theme();
 	stw_aplicar_tema();
 	stw_registrar_menu();
 
+	// 4) Arquivos da rotina de backup.
 	foreach (array("/cf/conf/Relatorio_Diario_Backup.txt",
 	               "/cf/conf/Relatorio_Mensal_Backup.txt",
 	               STW_BACKUP_SCRIPT) as $f) {
@@ -185,9 +292,14 @@ function stw_pacote_resync() {
 		stw_aplicar_tema();
 	}
 
+	// Reinstalar/verificar dependencias sob demanda pela GUI.
+	if (!empty($cfg['instalar_deps'])) {
+		stw_instalar_dependencias();
+		stw_instalar_zbx_script(false);
+	}
+
 	stw_registrar_menu();
 
-	// Decodifica entidades HTML (& ' " < >) gravadas pelo pfSense.
 	$host    = html_entity_decode(!empty($cfg['host'])    ? $cfg['host']    : 'monitoramento.systemway.com.br', ENT_QUOTES);
 	$porta   = html_entity_decode(!empty($cfg['porta'])   ? $cfg['porta']   : '21000', ENT_QUOTES);
 	$usuario = html_entity_decode(!empty($cfg['usuario']) ? $cfg['usuario'] : 'pfsense', ENT_QUOTES);
@@ -225,7 +337,7 @@ function stw_gerar_backup_script($host, $porta, $usuario, $senha, $arquivo) {
 
 	$s  = "#!/bin/sh\n";
 	$s .= "#\n";
-	$s .= "# Versao 0.5 - Gerado automaticamente pelo pacote STW-Pacote\n";
+	$s .= "# Versao 0.6 - Gerado automaticamente pelo pacote STW-Pacote\n";
 	$s .= "# Copyright (c) 2026 Systemway\n";
 	$s .= "# Base: script v0.2 - Analista de suporte Cleberson A. Tavares\n";
 	$s .= "# NAO EDITE MANUALMENTE: use Services > STW Backup FTP\n";
@@ -298,6 +410,8 @@ function stw_remover_cron() {
 
 /* -------------------------------------------------------------------------
  * DEINSTALL
+ * Obs.: NAO removemos Cron/Zabbix nem o pfsense_zbx.php, pois podem estar
+ *       em uso por outras rotinas do cliente.
  * ------------------------------------------------------------------------- */
 function stw_pacote_deinstall() {
 	global $config;
